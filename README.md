@@ -43,3 +43,5 @@ AgroNity aims to make **AI-powered agriculture accessible to every farmer**, reg
 - **Sustainable practices**  
 - **Increased profits**  
 
+---
+### PROCESSING PROJECT
