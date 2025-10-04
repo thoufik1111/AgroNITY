@@ -1,0 +1,718 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>AgroNity - Smart Crop & Input Management System</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.3.0/dist/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#0b0f12; --card:#0f1517; --muted:#9bdfb5; --accent:#00ffa3;
+    --panel-gap:18px;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial;
+    background:var(--bg); color:#e9fff6;
+  }
+
+  /* LOGIN full-screen */
+  #loginScreen{
+    position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+    background:linear-gradient(180deg, rgba(0,0,0,0.45), rgba(0,0,0,0.6));
+    z-index:40;
+  }
+  .loginCard{
+    width:420px; background:#061017; border-radius:12px; padding:20px; border:1px solid rgba(255,255,255,0.03);
+    box-shadow:0 6px 30px rgba(0,0,0,0.7);
+  }
+  .loginCard h2{margin:0 0 8px 0; color:var(--accent)}
+  .loginCard p{margin:0 0 16px 0; color:#9dbfb0; font-size:14px}
+  .field{display:flex; flex-direction:column; gap:6px; margin-bottom:12px}
+  input[type="text"], input[type="password"], input[type="number"]{
+    padding:10px; border-radius:8px; border:1px solid #123; background:transparent; color:#eafff4;
+  }
+  .btn{cursor:pointer; padding:10px 12px; border-radius:8px; border:none}
+  .btn-primary{background:linear-gradient(90deg,var(--accent),#00d4ff); color:#012; font-weight:700}
+  .btn-ghost{background:transparent; border:1px solid rgba(255,255,255,0.06); color:#bfffe3}
+
+  /* HEADER */
+  header{ display:flex; justify-content:space-between; align-items:center; padding:14px 22px; background:#071018; border-bottom:1px solid rgba(255,255,255,0.02)}
+  .brand{font-weight:800; color:var(--accent); font-size:20px}
+  .subtitle{color:#9dbfb0; font-size:13px; margin-left:8px}
+  .header-right{display:flex; gap:10px; align-items:center}
+
+  /* GRID LAYOUT */
+  .mainGrid{
+    display:grid; grid-template-columns: 2fr 1fr; gap:var(--panel-gap); padding:18px; align-items:stretch; height:calc(100vh - 68px);
+  }
+
+  /* LEFT */
+  #leftPanel{ display:flex; flex-direction:column; gap:14px }
+  .card{ background:var(--card); border-radius:12px; padding:14px; border:1px solid rgba(255,255,255,0.02); }
+
+  /* farm inputs */
+  .inputs{ display:flex; gap:10px; flex-wrap:wrap; align-items:center }
+  select, input[type="number"], input[type="text"]{
+    background:#0f1517; color:#ecfff7; border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:8px 10px; min-width:120px;
+  }
+  option{ background:#0f1517; color:#e9fff6; } /* fix dropdown visibility */
+
+  /* chat area */
+  #chatCard{ display:flex; flex-direction:column; flex:1; min-height:0 }
+  .chatWindow{ flex:1; overflow:auto; padding:12px; border-radius:10px; background:rgba(0,0,0,0.16) }
+  .msg { max-width:78%; padding:8px 10px; border-radius:10px; margin:8px 0; white-space:pre-line; line-height:1.35 }
+  .msg.user{ margin-left:auto; background:#062a1f; color:#e8fff2 }
+  .msg.bot{ margin-right:auto; background:#071019; color:#dfffee }
+
+  .chatControls{ display:flex; gap:8px; align-items:center; margin-top:10px }
+  #chatInp{ flex:1; padding:10px; border-radius:10px; border:1px solid rgba(255,255,255,0.03); background:transparent; color:#eafff8 }
+
+  .smallBtn{ padding:8px 10px; border-radius:8px; border:none; cursor:pointer }
+  .btn-img{ background:var(--accent); color:#002; }
+  .btn-voice{ background:#ff3fcf; color:white }
+  .btn-send{ background:#00d4ff; color:#002; font-weight:700 }
+
+  /* RIGHT PANEL */
+  #rightPanel{ display:flex; flex-direction:column; gap:14px }
+  #chips{ display:flex; flex-direction:column; gap:8px }
+  .chip{ display:flex; justify-content:space-between; align-items:center; padding:10px; border-radius:10px; border:1px solid rgba(255,255,255,0.04); background:rgba(0,0,0,0.12) }
+  .chip.on{ border-color:var(--accent); box-shadow:0 0 0 3px rgba(0,255,163,0.03) }
+
+  #chartCard{ flex:1; display:flex; flex-direction:column; padding:12px; border-radius:10px; background:rgba(0,0,0,0.08) }
+  canvas{ width:100% !important; height:230px !important; }
+
+  /* Budget Advice Section */
+  #budgetAdviceCard{ padding:14px; border-radius:12px; background:var(--card); border:1px solid rgba(255,255,255,0.02); }
+  .budget-inputs{ display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; align-items:center; }
+  .budget-inputs input{ flex:1; min-width:120px; }
+  #getBudgetBtn { padding: 8px 12px; }
+
+  #distInfo{ padding:12px; border-radius:8px; background:rgba(0,0,0,0.06) }
+
+  /* footer small note */
+  .muted{ color:#97cbb0; font-size:13px }
+
+  @media (max-width:980px){
+    .mainGrid{ grid-template-columns: 1fr; height:auto; padding:12px }
+    #rightPanel{ order:2 }
+    #leftPanel{ order:1 }
+    canvas{ height:200px !important }
+  }
+</style>
+</head>
+<body>
+
+<!-- LOGIN screen -->
+<div id="loginScreen" aria-hidden="false">
+  <div class="loginCard">
+    <h2>AgroNity</h2>
+    <p class="muted">Enter your details to login. (Demo OTP: <strong>2622</strong>)</p>
+
+    <div class="field">
+      <label style="color:#9dbfb0">Mobile Number</label>
+      <input id="loginMobile" type="text" placeholder="9876543210" />
+    </div>
+    <div class="field">
+      <label style="color:#9dbfb0">Username</label>
+      <input id="loginUser" type="text" placeholder="demo" />
+    </div>
+    <div class="field">
+      <label style="color:#9dbfb0">OTP</label>
+      <input id="loginOtp" type="number" placeholder="2622" />
+    </div>
+    <div style="display:flex; gap:8px; justify-content:flex-end;">
+      <button class="btn btn-primary" onclick="doLogin()">Login</button>
+    </div>
+  </div>
+</div>
+
+<!-- Header -->
+<header>
+  <div style="display:flex;align-items:center">
+    <div class="brand">AgroNity</div>
+    <div class="subtitle">Smart Crop & Input Management System</div>
+  </div>
+  <div class="header-right">
+    <!-- Language Selector Added -->
+    <select id="langSel" onchange="changeLang()" style="background:#0f1517;color:#e9fff6;border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:6px 8px;">
+      <option value="en">English</option>
+      <option value="ta">தமிழ்</option>
+      <option value="hi">हिंदी</option>
+      <option value="te">తెలుగు</option>
+      <option value="pa">ਪੰਜਾਬੀ</option>
+      <option value="ml">മലയാളം</option>
+    </select>
+    <div id="loggedAs" style="color:#9dbfb0">Not logged</div>
+    <button class="btn btn-ghost" onclick="logout()" id="logoutBtn" style="display:none">Logout</button>
+  </div>
+</header>
+
+<!-- Main app -->
+<main class="mainGrid" id="appRoot">
+  <!-- LEFT -->
+  <section id="leftPanel">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div style="font-weight:700;color:var(--accent)" id="farmInputsLbl">Farm Inputs</div>
+        <div class="muted" id="farmInputsSub">Select options</div>
+      </div>
+      <div class="inputs">
+        <select id="cropSel" title="Crop"></select>
+        <select id="distSel" title="District"></select>
+        <input id="landInp" type="number" step="0.25" value="1" title="Area (acre)" />
+        <select id="soilSel" title="Soil type"></select>
+      </div>
+    </div>
+    <div style="margin-top:10px; text-align:right">
+      <button id="submitBtn" type="button" class="btn btn-primary">Submit</button>
+    </div>
+    <div id="chatCard" class="card">
+      <div style="font-weight:700;color:var(--accent);margin-bottom:8px" id="assistantLbl">Assistant</div>
+      <div id="chat" class="chatWindow">
+        <div class="muted" id="chatWelcome">Welcome to AgroNity - please login first.</div>
+      </div>
+
+      <div class="chatControls">
+        <input id="chatInp" type="text" placeholder="Type your question" />
+        <input id="fileImg" type="file" accept="image/*" style="display:none" />
+        <button class="smallBtn btn-img" onclick="document.getElementById('fileImg').click()">Image</button>
+        <button class="smallBtn btn-voice" id="voiceBtn">Voice</button>
+        <button class="smallBtn btn-send" onclick="sendText()">Send</button>
+      </div>
+      <div style="display:flex; gap:8px; margin-top:8px; align-items:center">
+        <div class="muted" id="imgPrevLbl">Image preview:</div>
+        <div id="imgPreview"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- RIGHT -->
+  <aside id="rightPanel">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="font-weight:700;color:var(--accent)" id="includeLbl">Include in answer</div>
+        <div class="muted" id="toggleLbl">Toggle</div>
+      </div>
+      <div id="chips">
+        <div class="chip off"><span id="chipMandi">Mandi Prices</span><button onclick="toggleChip(this)">Off</button></div>
+        <div class="chip off"><span id="chipWeather">Weather</span><button onclick="toggleChip(this)">Off</button></div>
+        <div class="chip off"><span id="chipPast">Past Reports</span><button onclick="toggleChip(this)">Off</button></div>
+        <div class="chip off"><span id="chipGraph">Growth Graph</span><button onclick="toggleChip(this)">Off</button></div>
+      </div>
+    </div>
+
+    <div id="chartCard" class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div style="font-weight:700;color:var(--accent)" id="profitLbl">Profit Trend (Monthly)</div>
+        <div class="muted" id="last12Lbl">Prediction for next 12 months</div>
+      </div>
+      <canvas id="profitChart"></canvas>
+    </div>
+
+    <!-- New Budget Advice Section below the chart -->
+    <div id="budgetAdviceCard" class="card">
+      <div style="font-weight:700; color: var(--accent);">Budget Advice</div>
+      <div class="budget-inputs">
+        <input type="text" id="budgetCropInp" placeholder="Crop name" title="Crop name">
+        <input type="number" id="budgetAreaInp" placeholder="Area (ha)" step="0.1" title="Area in hectares">
+        <button id="getBudgetBtn" type="button" class="btn btn-primary smallBtn">Get Advice</button>
+      </div>
+    </div>
+    
+    <div id="distInfo" class="card">
+      <div style="font-weight:700;color:var(--accent);margin-bottom:6px" id="summaryLbl">Summary</div>
+      <div id="distSummary" class="muted">No selection</div>
+    </div>
+  </aside>
+</main>
+<script>
+   /* Data */
+const CROPS = ["Paddy", "Wheat", "Maize", "Cotton", "Groundnut", "Sugarcane", "Tapioca", "Mustard", "Soybean", "Tomato", "Chilli"];
+const PUNJAB_DISTRICTS = ["Amritsar", "Barnala", "Bathinda", "Faridkot", "Fatehgarh Sahib", "Fazilka", "Firozpur", "Gurdaspur", "Hoshiarpur", "Jalandhar", "Kapurthala", "Ludhiana", "Malerkotla", "Mansa", "Moga", "Muktsar", "Nawanshahr", "Pathankot", "Patiala", "Rupnagar", "Sahibzada Ajit Singh Nagar", "Sangrur", "Tarn Taran"];
+const TN_DISTRICTS = ["Ariyalur", "Chengalpattu", "Chennai", "Coimbatore", "Cuddalore", "Dharmapuri", "Dindigul", "Erode", "Kallakurichi", "Kanchipuram", "Kanyakumari", "Karur", "Krishnagiri", "Madurai", "Nagapattinam", "Namakkal", "Nilgiris", "Perambalur", "Pudukkottai", "Ramanathapuram", "Ranipet", "Salem", "Sivagangai", "Tenkasi", "Thanjavur", "Theni", "Thoothukudi", "Tiruchirappalli", "Tirunelveli", "Tirupathur", "Tiruppur", "Tiruvallur", "Tiruvannamalai", "Tiruvarur", "Vellore", "Viluppuram", "Virudhunagar"];
+const DISTRICTS = [...PUNJAB_DISTRICTS, ...TN_DISTRICTS];
+const SOILS = ["Alluvial", "Red", "Black", "Loamy", "Sandy Loam", "Clayey", "Silty", "Laterite", "Calcareous"];
+
+const DATA = {
+    // Data for a Punjab district (Ludhiana)
+    "141001": {
+        district: "Ludhiana",
+        rules: {
+            crop: "Wheat",
+            fertilizer: "Urea (46% Nitrogen) 70kg/acre",
+            manure: "Farmyard Manure (FYM) 5 tons/acre",
+            pesticide: "Chlorpyrifos 200ml/acre",
+            water: "150L/week"
+        },
+        mandi: { commodity: "Wheat", price: 2350, unit: "₹/qtl", date: "2025-09-18" },
+        weather: { now: "Partly Cloudy 28°C", forecast: "Thunderstorm next 3 days" },
+        past: { last_crop: "Wheat", yield_qtl_per_acre: 30 },
+        monthly: [{ m: "Jan", val: 120 }, { m: "Feb", val: 125 }, { m: "Mar", val: 128 }, { m: "Apr", val: 135 }, { m: "May", val: 138 }, { m: "Jun", val: 132 }, { m: "Jul", val: 130 }, { m: "Aug", val: 140 }, { m: "Sep", val: 142 }, { m: "Oct", val: 145 }, { m: "Nov", val: 150 }, { m: "Dec", val: 155 }]
+    },
+    // Data for a Tamil Nadu district (Chennai)
+    "600001": {
+        district: "Chennai",
+        rules: { crop: "Groundnut", fertilizer: "NPK 75kg/acre", water: "80L/week" },
+        mandi: { commodity: "Groundnut", price: 3800, unit: "₹/qtl", date: "2025-08-30" },
+        weather: { now: "Cloudy 30°C", forecast: "No heavy rain" },
+        past: { last_crop: "Groundnut", yield_qtl_per_acre: 10 },
+        monthly: [{ m: "Jan", val: 90 }, { m: "Feb", val: 95 }, { m: "Mar", val: 98 }, { m: "Apr", val: 110 }, { m: "May", val: 115 }, { m: "Jun", val: 120 }, { m: "Jul", val: 118 }, { m: "Aug", val: 125 }, { m: "Sep", val: 128 }, { m: "Oct", val: 130 }, { m: "Nov", val: 135 }, { m: "Dec", val: 140 }]
+    }
+};
+
+// Disease data for dummy prediction based on keywords
+/* Updated diseaseData object */
+const diseaseData = {
+    "wheat": [
+        "**Wheat Disease Analysis**",
+        "\n**Fusarium Head Blight:** 84.32% confidence",
+        "**Leaf Rust:** 71.02% confidence",
+        "**Healthy:** 5.27% confidence"
+    ],
+    "paddy": [
+        "**Paddy Disease Analysis**",
+        "\n**Rice Blast:** 92.71% confidence",
+        "**Brown Spot:** 65.87% confidence",
+        "**Healthy:** 3.00% confidence"
+    ],
+    "tomato": [
+        "**Tomato Disease Analysis**",
+        "\n**Late Blight:** 88.21% confidence",
+        "**Early Blight:** 75.62% confidence",
+        "**Healthy:** 10.02% confidence"
+    ],
+    "maize": [
+        "**Maize Disease Analysis**",
+        "\n**Maize Streak Virus:** 80.13% confidence",
+        "**Northern Corn Leaf Blight:** 75.56% confidence",
+        "**Gray Leaf Spot:** 48.11% confidence",
+        "**Healthy:** 12.34% confidence"
+    ],
+    "cotton": [
+        "**Cotton Disease Analysis**",
+        "\n**Bacterial Blight:** 90.32% confidence",
+        "**Root Rot:** 85.22% confidence",
+        "**Verticillium Wilt:** 70.98% confidence",
+        "**Healthy:** 5.23% confidence"
+    ],
+    "tapioca": [
+        "**Tapioca Disease Analysis**",
+        "\n**Cassava Mosaic Disease:** 95.73% confidence",
+        "**Brown Leaf Spot:** 71.11% confidence",
+        "**Tuber Rot:** 60.43% confidence",
+        "**Healthy:** 2.43% confidence"
+    ],
+    "default": [
+        "**Disease Analysis of this crop**",
+        "\n**Bacterial Spot:** 60.44% confidence",
+        "**Powdery Mildew:** 45.85% confidence",
+        "**Healthy:** 22.22% confidence"
+    ]
+};
+/* populate dropdowns */
+CROPS.forEach(c => cropSel.insertAdjacentHTML('beforeend', `<option>${c}</option>`));
+DISTRICTS.forEach(d => distSel.insertAdjacentHTML('beforeend', `<option>${d}</option>`));
+SOILS.forEach(s => soilSel.insertAdjacentHTML('beforeend', `<option>${s}</option>`));
+
+/* LOGIN */
+let loggedIn = false;
+function doLogin() {
+    const mob = document.getElementById('loginMobile').value.trim();
+    const user = document.getElementById('loginUser').value.trim();
+    const otp = document.getElementById('loginOtp').value.trim();
+    if (mob && user && otp === "2622") {
+        document.getElementById('loginScreen').style.display = 'none';
+        loggedIn = true;
+        document.getElementById('loggedAs').textContent = `Logged as ${user}`;
+        document.getElementById('logoutBtn').style.display = 'inline-block';
+        initAfterLogin();
+    } else {
+        pushMsg('bot', "Invalid login. Use OTP 2622.");
+    }
+}
+function sendText() {
+    const q = chatInp.value.trim();
+    if (!q) return;
+    if (!loggedIn) {
+        pushMsg('bot', "Please login first.");
+        return;
+    }
+    pushMsg('user', q);
+    chatInp.value = '';
+    setTimeout(() => reply(q), 500);
+}
+function logout() { location.reload(); }
+
+/* Chart */
+const ctx = document.getElementById('profitChart').getContext('2d');
+let profitChart = new Chart(ctx, {
+    type: 'line',
+    data: { labels: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"], datasets: [{ label: "Profit", data: Array(12).fill(null), tension: 0.35, borderWidth: 2, pointRadius: 4, borderColor: '#00ffa3' }] },
+    options: { maintainAspectRatio: false, scales: { x: { ticks: { color: '#9bdfb5' } }, y: { ticks: { color: '#9bdfb5' } } }, plugins: { legend: { display: false } } }
+});
+
+/* Chat helpers */
+function toggleChip(btn) { const chip = btn.parentElement; chip.classList.toggle('on'); chip.classList.toggle('off'); btn.textContent = chip.classList.contains('on') ? "On" : "Off"; }
+function chipOn(label) { return [...document.querySelectorAll('#chips .chip')].some(n => n.textContent.includes(label) && n.classList.contains('on')); }
+function pushMsg(who, text, isImage = false, imageUrl = null) {
+    const d = document.createElement('div');
+    d.className = 'msg ' + (who === 'bot' ? 'bot' : 'user');
+    if (isImage) {
+        d.innerHTML = `<img src="${imageUrl}" alt="Uploaded image" class="rounded-md" style="max-width:100%;height:auto;"/>`;
+    } else {
+        // Simple markdown-like formatting for bold text
+        d.innerHTML = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    }
+    document.getElementById('chat').appendChild(d);
+    document.getElementById('chat').scrollTop = document.getElementById('chat').scrollHeight;
+}
+
+function reply(q) {
+    const qLower = q.toLowerCase();
+    const pin = "141001"; // Default pincode for demonstration
+    const d = DATA[pin];
+    if (!d) {
+        pushMsg('bot', 'No data for this pincode.');
+        return;
+    }
+
+    let ans = '';
+
+    if (qLower.includes('fertilizer')) {
+        ans = `Fertilizer recommendation: ${d.rules.fertilizer}`;
+    } else if (qLower.includes('manure')) {
+        ans = `Manure recommendation: ${d.rules.manure}`;
+    } else if (qLower.includes('pesticide')) {
+        ans = `Pesticide recommendation: ${d.rules.pesticide}`;
+    } else {
+        // Default comprehensive reply
+        ans = `${d.district} - Crop:${d.rules.crop} - Fertilizer:${d.rules.fertilizer} - Manure:${d.rules.manure} - Pesticide:${d.rules.pesticide} - Water:${d.rules.water}`;
+    }
+
+    if (chipOn('Mandi Prices')) ans += `\nMandi: ${d.mandi.price}${d.mandi.unit} (${d.mandi.date})`;
+    if (chipOn('Weather')) ans += `\nWeather: ${d.weather.now} | Forecast: ${d.weather.forecast}`;
+    if (chipOn('Past Reports')) ans += `\nLast crop: ${d.past.last_crop} | Yield: ${d.past.yield_qtl_per_acre} qtl/acre`;
+    if (chipOn('Growth Graph')) { ans += `\nGraph updated.`; updateChartForPin(pin); }
+    pushMsg('bot', ans);
+    distSummary.innerHTML = `<strong style="color:var(--accent)">${d.district}</strong><div>Crop:${d.rules.crop}</div><div>Fertilizer:${d.rules.fertilizer}</div><div>Manure:${d.rules.manure}</div><div>Pesticide:${d.rules.pesticide}</div><div>Weather:${d.weather.now}</div>`;
+}
+
+function updateChartForPin(pin) { const d = DATA[pin]; if (!d) return; profitChart.data.labels = d.monthly.map(x => x.m); profitChart.data.datasets[0].data = d.monthly.map(x => x.val); profitChart.update(); }
+function initAfterLogin() { 
+  chatWelcome.textContent = "Welcome - ask about fertilizer, weather, mandi, etc."; 
+  chatInp.addEventListener('keydown', e => { 
+    if (e.key === 'Enter') sendText(); 
+  }); 
+  if (DATA["141001"]) updateChartForPin("141001");
+  distSummary.innerHTML += `
+    <hr style="border: 0.5px solid var(--muted); margin: 10px 0;">
+    <div style="font-weight: bold; margin-bottom: 5px; color: var(--accent);">Chatbot Keywords:</div>
+    <div style="font-size: 0.9em;">
+      <strong>fertilizer:</strong> It displays the type and amount of fertilizer used for the selected crop.<br>
+      <strong>pesticide:</strong> It displays the type and amount of pesticide used for the selected crop.<br>
+      <strong>manure:</strong> It displays the type and amount of manure used for the selected crop.<br>
+      <strong>guide:</strong> It states the step-by-step approach from cultivation to harvesting.<br>
+      <strong>mandi prices:</strong> Shows the current market price.<br>
+      <strong>weather:</strong> Gives current weather and forecast.<br>
+      <strong>past reports:</strong> Provides past crop and yield data.<br>
+      <strong>growth graph:</strong> Updates the monthly profit trend graph.
+    </div>
+  `;
+}
+
+/* Language Translations */
+const translations = {
+    en: {
+        farmInputsLbl: "Farm Inputs", farmInputsSub: "Select options", assistantLbl: "Assistant",
+        chatWelcome: "Welcome to AgroNity - please login first.", imgPrevLbl: "Image preview:",
+        includeLbl: "Include in answer", toggleLbl: "Toggle", chipMandi: "Mandi Prices",
+        chipWeather: "Weather", chipPast: "Past Reports", chipGraph: "Growth Graph",
+        profitLbl: "Profit Trend (Monthly)", last12Lbl: "Prediction for next 12 months", summaryLbl: "Summary"
+    },
+    ta: {
+        farmInputsLbl: "விவசாய உள்ளீடுகள்", farmInputsSub: "விருப்பங்களைத் தேர்ந்தெடுக்கவும்", assistantLbl: "உதவியாளர்",
+        chatWelcome: "AgroNity க்கு வரவேற்கிறோம் - முதலில் உள்நுழையவும்.", imgPrevLbl: "பட முன்னோட்டம்:",
+        includeLbl: "பதிலில் சேர்க்கவும்", toggleLbl: "மாற்று", chipMandi: "மண்டி விலை",
+        chipWeather: "வானிலை", chipPast: "முந்தைய அறிக்கைகள்", chipGraph: "வளர்ச்சி வரைபடம்",
+        profitLbl: "லாப போக்கு (மாதந்தோறும்)", last12Lbl: "கடந்த 12 மாதங்கள்", summaryLbl: "சுருக்கம்"
+    },
+    hi: {
+        farmInputsLbl: "खेती इनपुट", farmInputsSub: "विकल्प चुनें", assistantLbl: "सहायक",
+        chatWelcome: "AgroNity में आपका स्वागत है - पहले लॉगिन करें।", imgPrevLbl: "चित्र पूर्वावलोकन:",
+        includeLbl: "उत्तर में शामिल करें", toggleLbl: "टॉगल", chipMandi: "मंडी भाव",
+        chipWeather: "मौसम", chipPast: "पिछली रिपोर्ट", chipGraph: "वृद्धि ग्राफ",
+        profitLbl: "लाभ प्रवृत्ति (मासिक)", last12Lbl: "पिछले 12 महीने", summaryLbl: "सारांश"
+    },
+    te: {
+        farmInputsLbl: "పంట ఇన్‌పుట్‌లు", farmInputsSub: "ఎంపికలను ఎంచుకోండి", assistantLbl: "సహాయకుడు",
+        chatWelcome: "AgroNityకి స్వాగతం - దయచేసి ముందుగా లాగిన్ అవ్వండి.", imgPrevLbl: "చిత్ర ప్రివ్యూ:",
+        includeLbl: "సమాధానంలో చేర్చండి", toggleLbl: "టాగల్", chipMandi: "మండి ధరలు",
+        chipWeather: "వాతావరణం", chipPast: "గత నివేదికలు", chipGraph: "వృద్ధి గ్రాఫ్",
+        profitLbl: "లాభ ట్రెండ్ (నెలవారీ)", last12Lbl: "గత 12 నెలలు", summaryLbl: "సారాంశం"
+    },
+    pa: {
+        farmInputsLbl: "ਖੇਤੀਬਾੜੀ ਇਨਪੁੱਟਸ",
+        farmInputsSub: "ਵਿਕਲਪ ਚੁਣੋ",
+        assistantLbl: "ਸਹਾਇਕ",
+        chatWelcome: "ਐਗਰੋਨਿਟੀ ਵਿੱਚ ਸੁਆਗਤ ਹੈ - ਕਿਰਪਾ ਕਰਕੇ ਪਹਿਲਾਂ ਲਾਗਇਨ ਕਰੋ।",
+        imgPrevLbl: "ਚਿੱਤਰ ਝਲਕ:",
+        includeLbl: "ਜਵਾਬ ਵਿੱਚ ਸ਼ਾਮਲ ਕਰੋ",
+        toggleLbl: "ਟੌਗਲ",
+        chipMandi: "ਮੰਡੀ ਦੇ ਰੇਟ",
+        chipWeather: "ਮੌਸਮ",
+        chipPast: "ਪਿਛਲੀਆਂ ਰਿਪੋਰਟਾਂ",
+        chipGraph: "ਵਿਕਾਸ ਗ੍ਰਾਫ",
+        profitLbl: "ਲਾਭ ਦਾ ਰੁਝਾਨ (ਮਹੀਨਾਵਾਰ)",
+        last12Lbl: "ਪਿਛਲੇ 12 ਮਹੀਨੇ",
+        summaryLbl: "ਸੰਖੇਪ",
+    },
+    ml: {
+        farmInputsLbl: "കാർഷിക ഇൻപുട്ടുകൾ",
+        farmInputsSub: "ഓപ്ഷനുകൾ തിരഞ്ഞെടുക്കുക",
+        assistantLbl: "അസിസ്റ്റന്റ്",
+        chatWelcome: "അഗ്രോനിറ്റിയിലേക്ക് സ്വാഗതം - ആദ്യം ലോഗിൻ ചെയ്യുക.",
+        imgPrevLbl: "ചിത്രം പ്രിവ്യൂ:",
+        includeLbl: "ഉത്തരത്തിൽ ഉൾപ്പെടുത്തുക",
+        toggleLbl: "ടോഗിൾ",
+        chipMandi: "മണ്ഡി വിലകൾ",
+        chipWeather: "കാലാവസ്ഥ",
+        chipPast: "കഴിഞ്ഞ റിപ്പോർട്ടുകൾ",
+        chipGraph: "വളർച്ചാ ഗ്രാഫ്",
+        profitLbl: "ലാഭ ട്രെൻഡ് (പ്രതിമാസം)",
+        last12Lbl: "കഴിഞ്ഞ 12 മാസങ്ങൾ",
+        summaryLbl: "സംഗ്രഹം",
+    }
+};
+
+function changeLang() {
+    const lang = document.getElementById("langSel").value;
+    const t = translations[lang];
+    document.getElementById("farmInputsLbl").textContent = t.farmInputsLbl;
+    document.getElementById("farmInputsSub").textContent = t.farmInputsSub;
+    document.getElementById("assistantLbl").textContent = t.assistantLbl;
+    document.getElementById("chatWelcome").textContent = t.chatWelcome;
+    document.getElementById("imgPrevLbl").textContent = t.imgPrevLbl;
+    document.getElementById("includeLbl").textContent = t.includeLbl;
+    document.getElementById("toggleLbl").textContent = t.toggleLbl;
+    document.getElementById("chipMandi").textContent = t.chipMandi;
+    document.getElementById("chipWeather").textContent = t.chipWeather;
+    document.getElementById("chipPast").textContent = t.chipPast;
+    document.getElementById("chipGraph").textContent = t.chipGraph;
+    document.getElementById("profitLbl").textContent = t.profitLbl;
+    document.getElementById("last12Lbl").textContent = t.last12Lbl;
+    document.getElementById("summaryLbl").textContent = t.summaryLbl;
+}
+
+// --- Budget advice section logic ---
+const budgetAdviceCard = document.getElementById('budgetAdviceCard');
+if (budgetAdviceCard) {
+    budgetAdviceCard.querySelector("#getBudgetBtn").addEventListener("click", () => {
+        const crop = budgetAdviceCard.querySelector("#budgetCropInp").value.toLowerCase().trim();
+        const area = parseFloat(budgetAdviceCard.querySelector("#budgetAreaInp").value);
+
+        if (!loggedIn) {
+            pushMsg('bot', "Please log in to get budget advice.");
+            return;
+        }
+
+        if (!crop || isNaN(area) || area <= 0) {
+            pushMsg('bot', 'Please enter a valid crop name and a positive area.');
+            return;
+        }
+
+        pushMsg('bot', 'Analyzing budget...');
+
+        setTimeout(() => {
+            // Remove the "Analyzing..." message
+            const interimMsg = document.querySelector("#chat .msg.bot:last-child");
+            if (interimMsg && interimMsg.innerText.includes("Analyzing budget")) {
+                interimMsg.remove();
+            }
+
+            let advice = '';
+            const randomFactor = 0.9 + Math.random() * 0.2; // Adds a random variance
+            let costPerHectare;
+
+            switch(crop) {
+                case 'paddy':
+                case 'rice':
+                    costPerHectare = 75000;
+                    break;
+                case 'wheat':
+                    costPerHectare = 86000;
+                    break;
+                case 'cotton':
+                    costPerHectare = 160000;
+                    break;
+                default:
+                    costPerHectare = 100000;
+            }
+
+            const totalCost = (costPerHectare * area * randomFactor).toFixed(2);
+            advice = `Based on your inputs, the estimated budget for cultivating **${crop}** on **${area} hectares** is approximately **₹${totalCost}**.`;
+            pushMsg('bot', advice);
+        }, 1500); // Wait 1.5 seconds to simulate a real-time process
+    });
+}
+
+// --- Image analysis logic ---
+const fileImg = document.getElementById('fileImg');
+fileImg.addEventListener('change', async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    if (!loggedIn) {
+        pushMsg('bot', "Please log in to upload images for analysis.");
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        pushMsg('user', '', true, e.target.result);
+    };
+    reader.readAsDataURL(file);
+
+    try {
+        pushMsg('bot', "Analyzing image...");
+        const response = await fetch('/analyze_image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename: file.name })
+        });
+
+        // This removes the "Analyzing image..." message before showing the result.
+        const interim = document.querySelector("#chat .msg.bot:last-child");
+        if (interim && interim.textContent.includes("Analyzing")) interim.remove();
+
+        const data = await response.json();
+        if (data.status === 'success') {
+            const diseasePrediction = diseaseData[data.crop.toLowerCase()] || diseaseData.default;
+
+            const resultMessage = `
+**Diagnosis Report**,
+\nCrop Name: **${data.crop}**,
+  Average Production: **${data.avg_production}**,
+  Mandi Price: **₹${data.mandi_price} per kg**,
+\n${diseasePrediction.join('\n')}
+               `;
+            pushMsg('bot', resultMessage);
+        } else {
+            pushMsg('bot', `⚠️ Sorry, there was an issue with the analysis. ${data.message}`);
+        }
+    } catch (error) {
+        const interim = document.querySelector("#chat .msg.bot:last-child");
+        if (interim && interim.textContent.includes("Analyzing")) interim.remove();
+        pushMsg('bot', '⚠️ Sorry, there was an error analyzing the image. Please try again.');
+    }
+});
+
+// --- Submit handler for feasibility analysis ---
+document.getElementById("submitBtn").addEventListener("click", async () => {
+    const crop = document.getElementById("cropSel").value;
+    const district = document.getElementById("distSel").value;
+    const area = document.getElementById("landInp").value;
+    const soil = document.getElementById("soilSel").value;
+
+    const userText = `Analyze for Crop: ${crop}, District: ${district}, Area: ${area} acres, Soil: ${soil}`;
+    pushMsg("user", userText);
+    pushMsg("bot", "Analyzing your request...");
+
+    try {
+        const response = await fetch("/analyze", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ crop, district, area, soil })
+        });
+        const result = await response.json();
+
+        // remove interim message
+        const interim = document.querySelector("#chat .msg.bot:last-child");
+        if (interim && interim.textContent.includes("Analyzing")) interim.remove();
+
+        if (result.feasible) {
+            const reply = `
+✅ Feasibility Analysis: **FEASIBLE!**
+Probability: ${result.probability.toFixed(2)}
+Expected Yield: ${result.expected_yield_tpha.toFixed(2)} tons/ha
+Yield %: ${result.yield_percentage.toFixed(2)}%
+Mandi Price: Rs. ${result.mandi_price_rs_per_quintal.toFixed(2)} /qtl
+Profit: Rs. ${result.profit_rs.toFixed(2)}
+Revenue: Rs. ${result.total_revenue_rs.toFixed(2)}
+Revenue (1yr): Rs. ${result.revenue_1yr_rs.toFixed(2)}
+Revenue (2yr): Rs. ${result.revenue_2yr_rs.toFixed(2)}
+                `;
+            pushMsg("bot", reply);
+        } else {
+            let reply = "❌ Feasibility Analysis: **NOT FEASIBLE.**\nReasons:\n";
+            result.reasons.forEach(r => reply += `- ${r}\n`);
+            pushMsg("bot", reply);
+        }
+    } catch (err) {
+        pushMsg("bot", "⚠️ Error: Could not connect to backend.");
+    }
+});
+function reply(q) {
+  const qLower = q.toLowerCase();
+  const pin = "141001"; // Default pincode for demonstration
+  const crop = document.getElementById('cropSel').value; // Get the selected crop from the dropdown
+  const d = DATA[pin];
+  if (!d) {
+    pushMsg('bot', 'No data for this pincode.');
+    return;
+  }
+
+  let ans = '';
+
+  const steps = {
+    "Paddy": `**🌾 Easy Steps for Paddy (Rice) Cultivation**<br>- Prepare land: Plough, level, and add cow dung/compost (5–6 cartloads per acre).<br>- Seed: Use good quality seed (10–12 kg per acre).<br>- Nursery: Grow seedlings for 20–25 days.<br>- Transplanting: Plant at 20 × 15 cm spacing.<br>- Water: Keep 2–3 inches standing water; drain occasionally.<br>- Fertilizer: Urea/DAP/MOP in 3 stages – planting, tillering, flowering.<br>- Weeding & pests: Remove weeds early; neem oil for pests.<br>- Harvest & store: Cut when grains turn golden, dry and store safely.`,
+    "Wheat": `**🌾 Easy Steps for Wheat Cultivation**<br>- Prepare land: Plough, level, and add FYM/compost (4–5 cartloads per acre).<br>- Seed: Use 40–50 kg good quality seed per acre.<br>- Sowing: Line sowing at 22–25 cm spacing.<br>- Water: Irrigate at critical stages (crown root, tillering, flowering).<br>- Fertilizer: Urea/DAP in 3 splits – sowing, tillering, flowering.<br>- Weeding & pests: Remove weeds early; spray if rust/aphids appear.<br>- Harvest & store: Harvest when grains are hard and golden, dry well before storage.`,
+    "Maize": `**🌽 Easy Steps for Maize Cultivation**<br>- Prepare land: Plough to a fine tilth; add 10–15 tons of manure/compost per hectare.<br>- Seed & Sowing: Use 17–20 kg seed per hectare; plant in rows 60–75 cm apart.<br>- Water: Ensure consistent moisture, especially during flowering, but avoid waterlogging.<br>- Fertilizer: Apply a basal dose, with remaining nitrogen split into doses at the knee-high stage and tasseling.<br>- Weeding & Pests: Weed early and consider earthing up for stability.<br>- Harvest & Store: Harvest when kernels are firm; dry cobs and store in a cool, dry place.`,
+    "Rice": `**🌾 Easy Steps for Rice (Paddy) Cultivation**<br>- Prepare land: Plough and puddle the land, often under flooded conditions.<br>- Seed & Nursery: Test seeds by floating; sow in a nursery for 25–30 days before transplanting.<br>- Transplanting: Plant seedlings from the nursery to the main field with a specific spacing, like 20 x 15 cm.<br>- Water: Keep a standing water level of 2–3 inches, draining before harvest.<br>- Fertilizer: Apply Urea, DAP, and MOP in multiple applications timed with the crop's growth.<br>- Weeding & Pests: Control weeds by puddling and manual removal; manage pests with IPM techniques.<br>- Harvest & Store: Harvest when grains are golden; dry thoroughly before storing.`,
+    "Tomato": `**🍅 Easy Steps for Tomato Cultivation**<br>- Prepare land: Add FYM/compost before planting.<br>- Seed: Use 40–50 g hybrid seeds per acre.<br>- Nursery: Raise seedlings for 25–30 days.<br>- Transplanting: Plant at 60 × 45 cm spacing.<br>- Water: Regular irrigation, drip is best.<br>- Fertilizer: NPK in splits; extra potassium at fruiting.<br>- Weeding & pests: Stake plants; use neem oil/organic sprays for fruit borer.<br>- Harvest: Pick when fruits turn red and firm.`,
+    "Cotton": `**🌱 Easy Steps for Cotton Cultivation**<br>- Prepare land: Deep ploughing, add FYM (5 tons per acre).<br>- Seed: Use 1–1.5 kg certified Bt/non-Bt cotton seed per acre.<br>- Sowing: Spacing 90 × 60 cm.<br>- Water: Needs 6–8 irrigations; drip is efficient.<br>- Fertilizer: Balanced NPK in 3 splits.<br>- Weeding & pests: Watch for bollworm, whitefly; spray neem oil or recommended pesticides.<br>- Harvest: Pick clean, dry cotton bolls.`,
+    "Soybean": `**🌿 Easy Steps for Soybean Cultivation**<br>- Prepare land: Add FYM/compost (5 tons per acre).<br>- Seed: Use 25–30 kg certified seeds per acre.<br>- Sowing: Line sowing, 30 × 10 cm spacing.<br>- Water: Needs 4–5 irrigations, critical at flowering & pod filling.<br>- Fertilizer: Apply DAP at sowing; top-dress urea at flowering.<br>- Weeding & pests: Keep weed-free for first 40 days; control caterpillars/rust.<br>- Harvest: Cut when pods turn yellow-brown.`,
+    "Mustard": `**🌼 Easy Steps for Mustard Cultivation**<br>- Prepare land: Fine tilth, add FYM/compost (4 cartloads per acre).<br>- Seed: Use 2–3 kg seed per acre.<br>- Sowing: Line sowing, 30 × 10 cm spacing.<br>- Water: 2–3 irrigations, critical at flowering & pod filling.<br>- Fertilizer: Urea/DAP at sowing; top-dress after 25 days.<br>- Weeding & pests: Early weeding; watch for aphids, spray neem oil if needed.<br>- Harvest: Cut when pods turn yellow, dry and thresh.`,
+    "Sugarcane": `**🍬 Easy Steps for Sugarcane Cultivation**<br>- Prepare land: Deep plough, level field, add FYM/compost (8–10 tons per acre).<br>- Seed: Use healthy sugarcane setts (about 1000–1200 per acre).<br>- Sowing: Plant setts in furrows at 45 × 30 cm spacing.<br>- Water: Regular irrigation, especially during tillering and grand growth.<br>- Fertilizer: Apply NPK in 3–4 splits; extra nitrogen during growth stage.<br>- Weeding & pests: Remove weeds early; monitor for borers and aphids, spray neem oil if needed.<br>- Harvest: Harvest after 10–12 months when stalks are mature and juicy.`,
+    "default": "Sorry, I don't have detailed cultivation steps for this crop yet."
+  };
+  
+  const links = {
+    "Paddy": `<br>- 👉 Buy manure: <a href="https://www.ugaoo.com/collections/manures-fertilizers" target="_blank">Ugaoo</a><br>- 👉 Certified seeds: <a href="https://www.sahajaseeds.com/" target="_blank">Sahaja Seeds</a><br>- 👉 Irrigation video: <a href="https://www.youtube.com/watch?v=ZxJRmENdzV8" target="_blank">YouTube</a><br>- 👉 Neem oil: <a href="https://www.ugaoo.com/products/neem-oil-for-plants" target="_blank">Ugaoo</a>`,
+    "Wheat": `<br>- 👉 Buy manure: <a href="https://www.ugaoo.com/collections/manures-fertilizers" target="_blank">Ugaoo</a><br>- 👉 Certified seeds: <a href="https://haryanaseeds.gov.in/" target="_blank">Haryana Seeds</a><br>- 👉 Irrigation guide: <a href="https://www.youtube.com/watch?v=ZxJRmENdzV8" target="_blank">YouTube</a>`,
+    "Maize": `<br>- 👉 Buy manure: <a href="https://katyayanikrishidirect.com/collections/npk-fertilizer-for-crops" target="_blank">Katyayani Krishi Direct</a><br>- 👉 Certified seeds: <a href="https://agriplexindia.com/collections/maize" target="_blank">Agriplex</a><br>- 👉 Irrigation video: <a href="https://www.youtube.com/playlist?list=PL59NeXPjV62R3Fb3OoQ2G8l3pzU4fHs-D" target="_blank">YouTube Playlist</a><br>- 👉 Neem oil: <a href="https://www.ugaoo.com/products/neem-oil-for-plants" target="_blank">Ugaoo</a>`,
+    "Paddy": `<br>- 👉 Buy manure: <a href="https://www.bighaat.com/collections/micronutrients" target="_blank">BigHaat</a><br>- 👉 Certified seeds: <a href="https://krushidukan.bharatagri.com/en/collections/paddy-seeds-online" target="_blank">BharatAgri Krushi Dukan</a><br>- 👉 Irrigation video: <a href="https://www.youtube.com/watch?v=kT1R7Hkps5M" target="_blank">YouTube</a><br>- 👉 Neem oil: <a href="https://www.ugaoo.com/products/neem-oil-for-plants" target="_blank">Ugaoo</a>`,
+    "Tomato": `<br>- 👉 Organic manure: <a href="https://www.ugaoo.com/collections/manures-fertilizers" target="_blank">Ugaoo</a><br>- 👉 Tomato seeds: <a href="https://www.sahajaseeds.com/" target="_blank">Sahaja Seeds</a><br>- 👉 Drip irrigation demo: <a href="https://www.youtube.com/watch?v=SclaUd90HAc" target="_blank">YouTube</a>`,
+    "Cotton": `<br>- 👉 Cotton seeds info: <a href="https://nafed-india.com/" target="_blank">Nafed</a><br>- 👉 Neem oil: <a href="https://www.ugaoo.com/products/neem-oil-for-plants" target="_blank">Ugaoo</a>`,
+    "Soybean": `<br>- 👉 Soybean seeds info: <a href="https://nafed-india.com/" target="_blank">Nafed</a>`,
+    "Mustard": `<br>- 👉 Mustard seeds: <a href="https://agribegri.com/" target="_blank">AgriBegri</a>`,
+    "Sugarcane": `<br>- 👉 Buy manure: <a href="https://www.ugaoo.com/collections/manures-fertilizers" target="_blank">Ugaoo</a><br>- 👉 Sugarcane setts: <a href="https://nafed-india.com/" target="_blank">Nafed</a><br>- 👉 Irrigation guide: <a href="https://www.youtube.com/watch?v=SclaUd90HAc" target="_blank">YouTube</a>`
+  };
+
+  const selectedCrop = (crop === 'Rice') ? 'Paddy' : crop; 
+
+  if ((qLower.includes('harvest') || qLower.includes('cultivation') || qLower.includes('how to grow') || qLower.includes('guide')) && steps[selectedCrop]) {
+    ans = steps[selectedCrop] + (links[selectedCrop] || '');
+  } else if (qLower.includes('fertilizer')) {
+    ans = `Fertilizer recommendation: ${d.rules.fertilizer}`;
+  } else if (qLower.includes('manure')) {
+    ans = `Manure recommendation: ${d.rules.manure}`;
+  } else if (qLower.includes('pesticide')) {
+    ans = `Pesticide recommendation: ${d.rules.pesticide}`;
+  } else {
+    ans = `${d.district} - Crop:${d.rules.crop} - Fertilizer:${d.rules.fertilizer} - Manure:${d.rules.manure} - Pesticide:${d.rules.pesticide} - Water:${d.rules.water}`;
+  }
+
+  if (chipOn('Mandi Prices')) ans += `<br>Mandi: ${d.mandi.price}${d.mandi.unit} (${d.mandi.date})`;
+  if (chipOn('Weather')) ans += `<br>Weather: ${d.weather.now} | Forecast: ${d.weather.forecast}`;
+  if (chipOn('Past Reports')) ans += `<br>Last crop: ${d.past.last_crop} | Yield: ${d.past.yield_qtl_per_acre} qtl/acre`;
+  if (chipOn('Growth Graph')) {
+    ans += `<br>Graph updated.`;
+    updateChartForPin(pin);
+  }
+  pushMsg('bot', ans);
+  distSummary.innerHTML = `<strong style="color:var(--accent)">${d.district}</strong><div>Crop:${d.rules.crop}</div><div>Fertilizer:${d.rules.fertilizer}</div><div>Manure:${d.rules.manure}</div><div>Pesticide:${d.rules.pesticide}</div><div>Weather:${d.weather.now}</div>`;
+}
+</script>
+</body>
+</html>
